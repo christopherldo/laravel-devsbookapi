@@ -1,0 +1,25 @@
+* = SEM LOGIN
+
+POST *api/auth/login (email, password)
+POST api/auth/logout
+POST api/auth/refresh
+
+POST *api/user (name, email, password, birthdate)
+PUT api/user (name, email, birthdate, city, work, password, password_confirm)
+
+POST api/user/avatar (avatar)
+POST api/user/cover (cover)
+
+GET api/feed (page)
+GET api/user/feed (page)
+GET api/user/{userId}/feed (page)
+
+GET api/user
+GET api/user/{userId}
+
+POST api/feed (type=text/photo, body/photo)
+
+POST api/post/{postId}/like
+POST api/post/{postId}/comment (txt)
+
+GET api/search (txt)
