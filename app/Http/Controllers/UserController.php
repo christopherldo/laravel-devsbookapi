@@ -10,6 +10,7 @@ use App\Models\Post;
 use DateTime;
 use Illuminate\Support\Facades\Validator;
 use Intervention\Image\ImageManager;
+use Illuminate\Validation\Rule;
 
 class UserController extends Controller
 {
@@ -43,6 +44,7 @@ class UserController extends Controller
             'name' => 'required|string|max:50',
             'email' => 'required|string|email|max:50|unique:users',
             'password' => 'required|string|min:8|confirmed',
+            'password_confirmation' => 'required',
             'birthdate' => 'required|date|before_or_equal:' . gmdate('Y-m-d', strtotime('-13 years'))
         ]);
 
@@ -253,31 +255,84 @@ class UserController extends Controller
             $array['error'] = $validator->errors();
         } else {
             $user = User::where('public_id', $id)->first();
-            $array['info'] = $user;
 
-            $array['info']['avatar'] = url('/media/avatars/' . $array['info']['avatar']);
-            $array['info']['cover'] = url('/media/covers/' . $array['info']['cover']);
-
-            $array['info']['me'] = ($user['public_id'] === $this->loggedUser['public_id']) ?
+            $me = ($user['public_id'] === $this->loggedUser['public_id']) ?
                 true : false;
 
             $dateFrom = new DateTime($user->birthdate);
             $dateTo = new DateTime(gmdate('Y-m-d'));
-            $array['info']['age'] = $dateFrom->diff($dateTo)->y;
+            $age = $dateFrom->diff($dateTo)->y;
 
-            $array['info']['followers'] = UserRelation::where('user_to', $user->public_id)
+            $followers = UserRelation::where('user_to', $user->public_id)
                 ->count();
-            $array['info']['following'] = UserRelation::where('user_from', $user->public_id)
+            $following = UserRelation::where('user_from', $user->public_id)
                 ->count();
 
-            $array['info']['photo_count'] = Post::where('id_user', $user->public_id)
+            $photoCount = Post::where('id_user', $user->public_id)
                 ->where('type', 'photo')->count();
+
+            $array['info'] = [
+                'public_id' => $user->public_id,
+                'name' => $user->name,
+                'birthdate' => $user->birthdate,
+                'city' => $user->city,
+                'work' => $user->work,
+                'avatar' => url('/media/avatars/' . $user->avatar),
+                'cover' => url('/media/covers/' . $user->cover),
+                'me' => $me,
+                'age' => $age,
+                'followers' => $followers,
+                'following' => $following,
+                'photo_count' => $photoCount
+            ];
 
             $hasRelation = UserRelation::where('user_from', $this->loggedUser['public_id'])
                 ->where('user_to', $user->public_id)->first();
 
-            if($this->loggedUser['public_id'] !== $user->public_id){
+            if ($this->loggedUser['public_id'] !== $user->public_id) {
                 $array['info']['is_following'] = ($hasRelation) ? true : false;
+            };
+        };
+
+        return $array;
+    }
+
+    public function follow(string $id)
+    {
+        $array = [
+            'error' => ''
+        ];
+
+        $validator = Validator::make(['public_id' => $id], [
+            'public_id' => 'required|uuid|exists:users|' .
+                Rule::notIn([$this->loggedUser['public_id']])
+        ]);
+
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $relation = UserRelation::where('user_from', $this->loggedUser['public_id'])
+                ->where('user_to', $id)->first();
+
+            if ($relation) {
+                $relation->delete();
+
+                $array['relation'] = [
+                    'user_from' => $this->loggedUser['public_id'],
+                    'user_to' => $id,
+                    'following' => false
+                ];
+            } else {
+                $newRelation = new UserRelation();
+                $newRelation->user_from = $this->loggedUser['public_id'];
+                $newRelation->user_to = $id;
+                $newRelation->save();
+
+                $array['relation'] = [
+                    'user_from' => $newRelation->user_from,
+                    'user_to' => $newRelation->user_to,
+                    'following' => true
+                ];
             };
         };
 

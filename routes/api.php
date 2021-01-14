@@ -35,6 +35,9 @@ Route::prefix('user')->group(function () {
     Route::get('feed', [FeedController::class, 'userFeed']);
     Route::get('{id}/feed', [FeedController::class, 'userFeed']);
 
+    Route::post('{id}/follow', [UserController::class, 'follow']);
+    // Route::get('{id}/relations', [UserController::class, 'relations']);
+    // Route::get('{id}/photos', [UserController::class, 'photos']);
     Route::post('/', [UserController::class, 'create']);
     Route::put('/', [UserController::class, 'update']);
     Route::get('/', [UserController::class, 'read']);
@@ -45,12 +48,12 @@ Route::prefix('user')->group(function () {
 
 Route::prefix('feed')->group(function () {
     Route::get('/', [FeedController::class, 'read']);
-    Route::post('/', [FeedController::class, 'post']);
+    Route::post('/', [PostController::class, 'post']);
 });
 
-// Route::prefix('post')->group(function () {
-//     Route::post('{id}/like', [PostController::class, 'like']);
-//     Route::post('{id}/comment', [PostController::class, 'comment']);
-// });
+Route::prefix('post')->group(function () {
+    Route::post('{id}/like', [PostController::class, 'like']);
+    Route::post('{id}/comment', [PostController::class, 'comment']);
+});
 
-// Route::get('/search', [SearchController::class, 'search']);
+Route::get('/search', [SearchController::class, 'search']);

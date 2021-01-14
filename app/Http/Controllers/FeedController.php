@@ -5,14 +5,12 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Validation\Rule;
 use App\Models\Post;
 use App\Models\PostLike;
 use App\Models\PostComment;
 use App\Models\UserRelation;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
-use Intervention\Image\ImageManager;
 
 class FeedController extends Controller
 {
@@ -22,97 +20,6 @@ class FeedController extends Controller
     {
         $this->middleware('auth:api');
         $this->loggedUser = Auth::user();
-    }
-
-    public function post(Request $request)
-    {
-        $array = [
-            'error' => ''
-        ];
-
-        $data = $request->only([
-            'type',
-            'body',
-            'photo'
-        ]);
-
-        $validator = Validator::make($data, [
-            'type' => ['required', 'string', Rule::in(array('text', 'photo'))],
-            'body' => [
-                Rule::requiredIf($data['type'] === 'text'),
-                'exclude_if:type,photo',
-                'string'
-            ],
-            'photo' => [
-                Rule::requiredIf($data['type'] === 'photo'),
-                'exclude_if:type,text',
-                'image',
-                'max:10000',
-                'mimes:jpeg,jpg,png,webp'
-            ]
-        ]);
-
-        if ($validator->fails()) {
-            $array['error'] = $validator->errors();
-        } else {
-            $type = $data['type'];
-
-            do {
-                $publicId = $this->generateUuid();
-            } while (Post::where('public_id', $publicId)->count() !== 0);
-
-            $newPost = new Post();
-            $newPost->public_id = $publicId;
-            $newPost->id_user = $this->loggedUser['public_id'];
-            $newPost->type = $type;
-            $newPost->created_at = gmdate('Y-m-d H:i:s');
-
-            switch ($type) {
-                case 'text':
-                    $body = $data['body'];
-                    $newPost->body = $body;
-                    break;
-                case 'photo':
-                    $photo = $data['photo'];
-
-                    $filename = $publicId . '.webp';
-
-                    $destPath = public_path('/media/uploads/') . '/' . $filename;
-
-                    $manager = new ImageManager();
-
-                    $manager->make($photo->path())->resize(800, null, function ($constraint) {
-                        $constraint->aspectRatio();
-                    })->save($destPath);
-
-                    $newPost->body = $filename;
-                    break;
-            };
-
-            $newPost->save();
-
-            $array['post'] = $newPost;
-
-            if ($array['post']['type'] === 'photo') {
-                $array['post']['body'] = url('media/uploads/' . $array['post']['body']);
-            };
-
-            $userInfo = User::where('public_id', $newPost->id_user)->first();
-
-            $array['post']['mine'] = true;
-
-            if ($userInfo) {
-                $userInfo['avatar'] = url('media/avatars/' . $userInfo['avatar']);
-                $userInfo['cover'] = url('media/covers/' . $userInfo['cover']);
-                $array['post']['user'] = $userInfo;
-            };
-
-            $array['post']['likeCount'] = 0;
-            $array['post']['liked'] = false;
-            $array['post']['comments'] = [];
-        };
-
-        return $array;
     }
 
     public function read(Request $request)
@@ -214,19 +121,21 @@ class FeedController extends Controller
             $userInfo = User::where('public_id', $postItem['id_user'])->first();
 
             if ($userInfo) {
-                $userInfo['avatar'] = url('media/avatars/' . $userInfo['avatar']);
-                $userInfo['cover'] = url('media/covers/' . $userInfo['cover']);
-                $postList[$postKey]['user'] = $userInfo;
+                $postList[$postKey]['user'] = [
+                    'public_id' => $userInfo->public_id,
+                    'name' => $userInfo->name,
+                    'avatar' => url('media/avatars/' . $userInfo->avatar),
+                ];
             };
 
             $likes = PostLike::where('id_post', $postItem['public_id'])->count();
 
-            $postList[$postKey]['likeCount'] = $likes;
+            $postList[$postKey]['like_count'] = $likes;
 
             $isLiked = PostLike::where('id_post', $postItem['public_id'])
                 ->where('id_user', $idLogged)->count();
 
-            $postList[$postKey]['liked'] = ($isLiked > 0) ? true : false;
+            $postList[$postKey]['is_liked'] = ($isLiked > 0) ? true : false;
 
             $comments = PostComment::where('id_post', $postItem['public_id'])
                 ->get();
@@ -235,9 +144,11 @@ class FeedController extends Controller
                 $user = User::where('public_id', $comment['id_user'])->first();
 
                 if ($user) {
-                    $user['avatar'] = url('media/avatars/' . $user['avatar']);
-                    $user['cover'] = url('media/covers/' . $user['cover']);
-                    $comments[$commentKey]['user'] = $user;
+                    $comments[$commentKey]['user'] = [
+                        'public_id' => $user->public_id,
+                        'name' => $user->name,
+                        'avatar' => url('media/avatars/' . $user->avatar),
+                    ];
                 };
             };
 
