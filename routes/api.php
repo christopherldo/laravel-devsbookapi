@@ -25,30 +25,30 @@ Route::get('ping', function () {
 
 Route::get('/401', [AuthController::class, 'unauthorized'])->name('login');
 
-// Route::prefix('auth')->group(function () {
-//     Route::post('login', [AuthController::class, 'login']);
-//     Route::post('logout', [AuthController::class, 'logout']);
-//     Route::post('refresh', [AuthController::class, 'refresh']);
-// });
-
-Route::prefix('user')->group(function () {
-//     Route::get('feed', [FeedController::class, 'userFeed']);
-//     Route::get('{id}/feed', [FeedController::class, 'userFeed']);
-
-    Route::post('/', [UserController::class, 'create']);
-//     Route::put('/', [UserController::class, 'update']);
-//     Route::post('avatar', [UserController::class, 'updateAvatar']);
-//     Route::post('cover', [UserController::class, 'updateCover']);
-//     Route::get('/', [UserController::class, 'read']);
-//     Route::get('{id}', [UserController::class, 'read']);
+Route::prefix('auth')->group(function () {
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('logout', [AuthController::class, 'logout']);
+    Route::post('refresh', [AuthController::class, 'refresh']);
 });
 
-// Route::prefix('feed', function () {
-//     Route::get('/', [FeedController::class, 'read']);
-//     Route::post('/', [FeedController::class, 'post']);
-// });
+Route::prefix('user')->group(function () {
+    Route::get('feed', [FeedController::class, 'userFeed']);
+    Route::get('{id}/feed', [FeedController::class, 'userFeed']);
 
-// Route::prefix('post', function () {
+    Route::post('/', [UserController::class, 'create']);
+    Route::put('/', [UserController::class, 'update']);
+    Route::get('/', [UserController::class, 'read']);
+    Route::get('{id}', [UserController::class, 'read']);
+    Route::post('avatar', [UserController::class, 'updateAvatar']);
+    Route::post('cover', [UserController::class, 'updateCover']);
+});
+
+Route::prefix('feed')->group(function () {
+    Route::get('/', [FeedController::class, 'read']);
+    Route::post('/', [FeedController::class, 'post']);
+});
+
+// Route::prefix('post')->group(function () {
 //     Route::post('{id}/like', [PostController::class, 'like']);
 //     Route::post('{id}/comment', [PostController::class, 'comment']);
 // });

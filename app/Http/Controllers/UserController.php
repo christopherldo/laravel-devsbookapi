@@ -5,7 +5,11 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use App\Models\User;
+use App\Models\UserRelation;
+use App\Models\Post;
+use DateTime;
 use Illuminate\Support\Facades\Validator;
+use Intervention\Image\ImageManager;
 
 class UserController extends Controller
 {
@@ -13,8 +17,12 @@ class UserController extends Controller
 
     public function __construct()
     {
-        // $this->middleware('auth:api');
-        // $this->loggedUser = auth()->user();
+        $this->middleware('auth:api', [
+            'except' => [
+                'create'
+            ]
+        ]);
+        $this->loggedUser = Auth::user();
     }
 
     public function create(Request $request)
@@ -27,89 +35,253 @@ class UserController extends Controller
             'name',
             'email',
             'password',
+            'password_confirmation',
             'birthdate'
         ]);
 
-        $name = $data['name'] ?? '';
-        $email = $data['email'] ?? '';
-        $password = $data['password'] ?? '';
-        $birthdate = $data['birthdate'] ?? '';
+        $validator = Validator::make($data, [
+            'name' => 'required|string|max:50',
+            'email' => 'required|string|email|max:50|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            'birthdate' => 'required|date|before_or_equal:' . gmdate('Y-m-d', strtotime('-13 years'))
+        ]);
 
-        if ($name && $email && $password && $birthdate) {
-            if (strtotime($birthdate) === false) {
-                $array['error'] = 'Invalid Birthdate';
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $name = $data['name'];
+            $email = $data['email'];
+            $password = $data['password'];
+            $birthdate = Date('Y-m-d', strtotime($data['birthdate']));
+
+            do {
+                $publicId = $this->generateUuid();
+            } while (User::where('public_id', $publicId)->count() !== 0);
+
+            $hash = password_hash($password, PASSWORD_DEFAULT);
+
+            $newUser = new User();
+            $newUser->public_id = $publicId;
+            $newUser->email = $email;
+            $newUser->password = $hash;
+            $newUser->name = $name;
+            $newUser->birthdate = $birthdate;
+            $newUser->avatar = url('media/avatars' . $newUser->avatar);
+            $newUser->cover = url('media/avatars' . $newUser->cover);
+            $newUser->save();
+
+            $token = Auth::attempt([
+                'email' => $email,
+                'password' => $password
+            ]);
+
+            if ($token) {
+                $array['token'] = $token;
+                $array['user'] = $newUser;
             } else {
-                if (User::where('email', $email)->count() !== 0) {
-                    $array['error'] = 'E-mail already been taken';
+                $array['error'] = 'Unexpected error!';
+            };
+        }
+
+        return $array;
+    }
+
+    public function update(Request $request)
+    {
+        $array = [
+            'error' => ''
+        ];
+
+        $data = $request->only([
+            'name',
+            'email',
+            'birthdate',
+            'city',
+            'work',
+            'password',
+            'password_confirmation'
+        ]);
+
+        $user = User::find($this->loggedUser['id']);
+
+        $validator = Validator::make($data, [
+            'name' => 'string|max:50',
+            'email' => 'string|email|max:50',
+            'birthdate' => 'date|before_or_equal:' . gmdate('Y-m-d', strtotime('-13 years')),
+            'city' => 'string|max:50',
+            'work' => 'string|max:50',
+            'password' => 'string|confirmed|min:8',
+        ]);
+
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $email = $data['email'] ?? '';
+            $name = $data['name'] ?? '';
+            $city = $data['city'] ?? '';
+            $work = $data['work'] ?? '';
+            $password = $data['password'] ?? '';
+            $birthdate = isset($data['birthdate']) ?
+                Date('Y-m-d', strtotime($data['birthdate'])) : '';
+
+            if ($user->email !== $email) {
+                if (User::where('email', $email)->count() > 0) {
+                    $array['error'] = 'The email has already been taken.';
                 } else {
-                    $validator = Validator::make($data, [
-                        'email' => 'string|email|max:50'
-                    ]);
-
-                    if ($validator->fails()) {
-                        $array['error'] = 'Invalid e-mail';
-                    } else {
-                        $validator = Validator::make($data, [
-                            'password' => 'string|min:8'
-                        ]);
-
-                        if ($validator->fails()) {
-                            $array['error'] = 'Password must be 8 chars longs at least';
-                        } else {
-                            do {
-                                $salt = $this->generateSalt();
-                            } while (User::where('salt', $salt)->count() !== 0);
-
-                            do {
-                                $publicId = $this->generateUuid();
-                            } while (User::where('public_id', $publicId)->count() !== 0);
-
-                            $sha256 = hash('sha256', $password . $salt);
-                            $hash = password_hash($sha256, PASSWORD_DEFAULT);
-
-                            $newUser = new User();
-                            $newUser->public_id = $publicId;
-                            $newUser->email = $email;
-                            $newUser->password = $hash;
-                            $newUser->salt = $salt;
-                            $newUser->name = $name;
-                            $newUser->birthdate = $birthdate;
-                            $newUser->save();
-
-                            $token = Auth::attempt([
-                                'email' => $email,
-                                'password' => hash('sha256', $password . $salt)
-                            ]);
-
-                            if ($token) {
-                                $array['token'] = $token;
-                            } else {
-                                $array['error'] = 'Unexpected error!';
-                            };
-                        };
+                    if ($email) {
+                        $user->email = $email;
                     };
                 };
             };
+
+            if ($name) {
+                $user->name = $name;
+            };
+
+            if ($city) {
+                $user->city = $city;
+            };
+
+            if ($work) {
+                $user->work = $work;
+            };
+
+            if ($password) {
+                $hash = password_hash($password, PASSWORD_DEFAULT);
+                $user->password = $hash;
+            };
+
+            if ($birthdate) {
+                $user->birthdate = $birthdate;
+            };
+
+            $user->save();
+
+            $array['user'] = $user;
+        }
+
+        return $array;
+    }
+
+    public function updateAvatar(Request $request)
+    {
+        $array = [
+            'error' => ''
+        ];
+
+        $data = $request->only(['avatar']);
+
+        $validator = Validator::make($data, [
+            'avatar' => 'required|image|max:10000|mimes:jpeg,jpg,png,webp'
+        ]);
+
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
         } else {
-            $array['error'] = 'You must fill all fields';
+            $image = $data['avatar'];
+
+            $user = User::find($this->loggedUser['id']);
+
+            $filename = $user->public_id . '.webp';
+
+            $destPath = public_path('/media/avatars') . '/' . $filename;
+
+            $manager = new ImageManager();
+
+            $manager->make($image->path())->fit(200, 200)->save($destPath);
+
+            $user->avatar = $filename;
+            $user->save();
+
+            $array['url'] = url('/media/avatars/' . $filename);
         };
 
         return $array;
     }
 
-    private function generateSalt(int $length = 64)
+    public function updateCover(Request $request)
     {
-        $chars =  'ABCDEFGHIJKLMNOPQRSTUVWXYZ' . 'abcdefghijklmnopqrstuvwxyz' .
-            '0123456789' . '`-=~!@#$%^&*()_+,./<>?;:[]{}\|';
-        $salt = '';
+        $array = [
+            'error' => ''
+        ];
 
-        $max = strlen($chars) - 1;
+        $data = $request->only(['cover']);
 
-        for ($i = 0; $i < $length; $i++) {
-            $salt .= $chars[random_int(0, $max)];
-        }
+        $validator = Validator::make($data, [
+            'cover' => 'required|image|max:10000|mimes:jpeg,jpg,png,webp'
+        ]);
 
-        return $salt;
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $image = $data['cover'];
+
+            $user = User::find($this->loggedUser['id']);
+
+            $filename = $user->public_id . '.webp';
+
+            $destPath = public_path('/media/covers') . '/' . $filename;
+
+            $manager = new ImageManager();
+
+            $manager->make($image->path())->fit(850, 310)->save($destPath);
+
+            $user->cover = $filename;
+            $user->save();
+
+            $array['url'] = url('/media/covers/' . $filename);
+        };
+
+        return $array;
+    }
+
+    public function read($id = false)
+    {
+        $array = [
+            'error' => ''
+        ];
+
+        if ($id) {
+            $validator = Validator::make(['public_id' => $id], [
+                'public_id' => 'uuid|exists:users'
+            ]);
+        } else {
+            $id = $this->loggedUser['public_id'];
+        };
+
+        if (isset($validator) && $validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $user = User::where('public_id', $id)->first();
+            $array['info'] = $user;
+
+            $array['info']['avatar'] = url('/media/avatars/' . $array['info']['avatar']);
+            $array['info']['cover'] = url('/media/covers/' . $array['info']['cover']);
+
+            $array['info']['me'] = ($user['public_id'] === $this->loggedUser['public_id']) ?
+                true : false;
+
+            $dateFrom = new DateTime($user->birthdate);
+            $dateTo = new DateTime(gmdate('Y-m-d'));
+            $array['info']['age'] = $dateFrom->diff($dateTo)->y;
+
+            $array['info']['followers'] = UserRelation::where('user_to', $user->public_id)
+                ->count();
+            $array['info']['following'] = UserRelation::where('user_from', $user->public_id)
+                ->count();
+
+            $array['info']['photo_count'] = Post::where('id_user', $user->public_id)
+                ->where('type', 'photo')->count();
+
+            $hasRelation = UserRelation::where('user_from', $this->loggedUser['public_id'])
+                ->where('user_to', $user->public_id)->first();
+
+            if($this->loggedUser['public_id'] !== $user->public_id){
+                $array['info']['is_following'] = ($hasRelation) ? true : false;
+            };
+        };
+
+        return $array;
     }
 
     private function generateUuid()

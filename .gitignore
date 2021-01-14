@@ -21,3 +21,7 @@ Homestead.yaml
 Homestead.json
 /.vagrant
 .phpunit.result.cache
+
+public/media/avatars/*.webp
+public/media/covers/*.webp
+public/media/uploads/*.webp

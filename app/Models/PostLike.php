@@ -10,4 +10,8 @@ class PostLike extends Model
     use HasFactory;
 
     public $timestamps = false;
+
+    protected $hidden = [
+        'id'
+    ];
 }

@@ -17,8 +17,7 @@ class CreateAllTables extends Migration
             $table->id();
             $table->uuid('public_id');
             $table->string('email', 50);
-            $table->string('password', 60);
-            $table->string('salt', 64);
+            $table->string('password', 255);
             $table->string('name', 50);
             $table->date('birthdate');
             $table->string('city', 50)->nullable();
