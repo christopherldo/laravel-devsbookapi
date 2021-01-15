@@ -34,10 +34,11 @@ Route::prefix('auth')->group(function () {
 Route::prefix('user')->group(function () {
     Route::get('feed', [FeedController::class, 'userFeed']);
     Route::get('{id}/feed', [FeedController::class, 'userFeed']);
+    Route::get('{id}/photos', [FeedController::class, 'userPhotos']);
+    Route::get('photos', [FeedController::class, 'userPhotos']);
 
     Route::post('{id}/follow', [UserController::class, 'follow']);
-    // Route::get('{id}/relations', [UserController::class, 'relations']);
-    // Route::get('{id}/photos', [UserController::class, 'photos']);
+    Route::get('{id}/relations', [UserController::class, 'relations']);
     Route::post('/', [UserController::class, 'create']);
     Route::put('/', [UserController::class, 'update']);
     Route::get('/', [UserController::class, 'read']);

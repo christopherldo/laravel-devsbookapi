@@ -339,6 +339,53 @@ class UserController extends Controller
         return $array;
     }
 
+    public function relations(string $id)
+    {
+        $array = [
+            'error' => ''
+        ];
+
+        $validator = Validator::make(['public_id' => $id], [
+            'public_id' => 'required|uuid|exists:users'
+        ]);
+
+        if ($validator->fails()) {
+            $array['error'] = $validator->errors();
+        } else {
+            $followers = UserRelation::where('user_to', $id)->get();
+            $following = UserRelation::where('user_from', $id)->get();
+
+            $array['followers'] = [];
+            $array['following'] = [];
+
+            foreach ($followers as $item) {
+                $user = User::where('public_id', $item['user_from'])->first();
+
+                if ($user) {
+                    $array['followers'][] = [
+                        'public_id' => $user['public_id'],
+                        'name' => $user['name'],
+                        'avatar' => url('/media/avatars/' . $user['avatar'])
+                    ];
+                };
+            };
+
+            foreach ($following as $item) {
+                $user = User::where('public_id', $item['user_from'])->first();
+
+                if ($user) {
+                    $array['following'][] = [
+                        'public_id' => $user['public_id'],
+                        'name' => $user['name'],
+                        'avatar' => url('/media/avatars/' . $user['avatar'])
+                    ];
+                };
+            };
+        };
+
+        return $array;
+    }
+
     private function generateUuid()
     {
         return sprintf(

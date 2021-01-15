@@ -62,7 +62,7 @@ class FeedController extends Controller
         return $array;
     }
 
-    public function userFeed(Request $request, $id = false)
+    public function userFeed(Request $request, $id = false, $onlyPhotos = false)
     {
         $array = [
             'error' => ''
@@ -83,14 +83,24 @@ class FeedController extends Controller
 
             $perPage = 10;
 
-            $total = Post::where('id_user', $id)->count();
+            $total = Post::where('id_user', $id);
+
+            $postList = Post::where('id_user', $id);
+
+            if ($onlyPhotos) {
+                $total = $total->where('type', 'photo');
+                $postList = $postList->where('type', 'photo');
+            };
+
+            $total = $total->count();
+
             $pageCount = ceil($total / $perPage);
 
             if ($page >= $pageCount) {
                 $page = $pageCount - 1;
             };
 
-            $postList = Post::where('id_user', $id)->orderBy('created_at', 'desc')
+            $postList = $postList->orderBy('created_at', 'desc')
                 ->offset($page * $perPage)->limit($perPage)->get();
 
             $posts = $this->postListToObject($postList);
@@ -158,18 +168,10 @@ class FeedController extends Controller
         return $postList;
     }
 
-    private function generateUuid()
+    public function userPhotos(Request $request, $id = false)
     {
-        return sprintf(
-            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0x0fff) | 0x4000,
-            mt_rand(0, 0x3fff) | 0x8000,
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff),
-            mt_rand(0, 0xffff)
-        );
+        $onlyPhotos = true;
+
+        return $this->userFeed($request, $id, $onlyPhotos);
     }
 }
